@@ -214,6 +214,8 @@ include("ControlFlow.jl")
 include("Tracing.jl")
 include("Compiler.jl")
 
+include("IFRT.jl")
+
 include("Overlay.jl")
 
 function Enzyme.make_zero(
