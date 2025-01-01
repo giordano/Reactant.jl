@@ -214,6 +214,7 @@ include("ControlFlow.jl")
 include("Tracing.jl")
 include("Compiler.jl")
 
+include("PjRt.jl")
 include("IFRT.jl")
 
 include("Overlay.jl")
