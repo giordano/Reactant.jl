@@ -51,7 +51,13 @@ load("@enzyme_ad//:workspace.bzl", "JAX_COMMIT", "JAX_SHA256", "ENZYME_COMMIT", 
 
 XLA_PATCHES = XLA_PATCHES + [
 """
-sed -i.bak0 "s/__cpp_lib_hardware_interference_size/HW_INTERFERENCE_SIZE/g" xla/backends/cpu/runtime/thunk_executor.h
+sed -i.bak0 "s/__cpp_lib_hardware_interference_size/HW_INTERFERENCE_SIZE/g" xla/service/gpu/kernels/BUILD
+""",
+"""
+sed -i.bak0 's/":cutlass_gemm_kernel_f32xbf16_to_f32"/#":cutlass_gemm_kernel_f32xbf16_to_f32"/g' xla/backends/cpu/runtime/thunk_executor.h
+""",
+"""
+sed -i.bak0 's/":tma_util"/#":tma_util"/g' xla/stream_executor/cuda/BUILD
 """,
 """
 sed -i.bak0 "s/__cpp_lib_hardware_interference_size/HW_INTERFERENCE_SIZE/g" xla/tsl/concurrency/async_value_ref.h
@@ -136,7 +142,7 @@ http_archive(
 )
 
 # load("@jax//third_party/xla:workspace.bzl", "XLA_COMMIT", "XLA_SHA256")
-XLA_COMMIT = "f2868a4bd33388a39c2f21f900d787040343ca8c"
+XLA_COMMIT = "6d379f83f571f879a6fdcfceb8b41eeffbfeaa3e"
 XLA_SHA256 = ""
 
 http_archive(
