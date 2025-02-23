@@ -570,8 +570,6 @@ end
 const DEBUG_KERNEL = Ref{Bool}(false)
 const DUMP_LLVMIR = Ref{Bool}(false)
 
-const Raise = Ref{Bool}(false)
-
 function compile_mlir!(
     mod,
     f,
@@ -588,6 +586,7 @@ function compile_mlir!(
     optimize::Union{Bool,Symbol}=true,
     no_nan::Bool=false,
     backend="gpu",
+    raise::Bool=false,
 )
     # Explicitly don't use block! to avoid creating a closure, which creates
     # both compile-time and relocatability issues
@@ -629,14 +628,14 @@ function compile_mlir!(
         )
         @assert curesulthandler !== nothing
         curesulthandler = Base.reinterpret(UInt, curesulthandler)
-        kern = if Raise[]
+        kern = if raise
             "lower-kernel{backend=cpu},symbol-dce,canonicalize"
         else
             "lower-kernel,canonicalize"
         end
         jit = "lower-jit{debug=true cuResultHandlerPtr=$curesulthandler cuOptLevel=$(cuOptLevel[]) cubinFormat=$(cubinFormat[]) indexBitWidth=$(cuindexBitWidth[])  cubinChip=$(cubinChip[]) cubinFeatures=$(cubinFeatures()) run_init=true toolkitPath=$toolkit},symbol-dce"
     else
-        kern = if Raise[]
+        kern = if raise
             "lower-kernel{backend=cpu},symbol-dce,canonicalize"
         else
             "lower-kernel,canonicalize"
@@ -647,7 +646,7 @@ function compile_mlir!(
     opt_passes = optimization_passes(; no_nan, sroa=true)
     opt_passes2 = optimization_passes(; no_nan, sroa=false)
 
-    raise = if Raise[]
+    raise = if raise
         "canonicalize,llvm-to-memref-access,canonicalize,convert-llvm-to-cf,canonicalize,enzyme-lift-cf-to-scf,canonicalize,func.func(canonicalize-loops),canonicalize-scf-for,canonicalize,affine-cfg,canonicalize,func.func(canonicalize-loops),canonicalize,llvm-to-affine-access,canonicalize,delinearize-indexing,canonicalize,raise-affine-to-stablehlo,arith-raise{stablehlo=true}," *
         opt_passes2
     else
@@ -873,7 +872,7 @@ See also [`@code_xla`](@ref), [`@code_mhlo`](@ref).
 """
 macro code_hlo(args...)
     default_options = Dict{Symbol,Any}(
-        :optimize => true, :no_nan => false, :client => nothing
+        :optimize => true, :no_nan => false, :client => nothing, :raise => false
     )
     compile_expr, (; compiled) = compile_call_expr(
         __module__, compile_mlir, default_options, args...
@@ -897,7 +896,7 @@ See also [`@code_xla`](@ref), [`@code_hlo`](@ref).
 """
 macro code_mhlo(args...)
     default_options = Dict{Symbol,Any}(
-        :optimize => true, :no_nan => false, :client => nothing
+        :optimize => true, :no_nan => false, :client => nothing, :raise => false
     )
     compile_expr, (; compiled) = compile_call_expr(
         __module__, compile_xla, default_options, args...
@@ -921,7 +920,7 @@ See also [`@code_mhlo`](@ref), [`@code_hlo`](@ref).
 """
 macro code_xla(args...)
     default_options = Dict{Symbol,Any}(
-        :optimize => true, :no_nan => false, :client => nothing
+        :optimize => true, :no_nan => false, :client => nothing, :raise => false
     )
     compile_expr, (; compiled) = compile_call_expr(
         __module__, compile_xla, default_options, args...
@@ -943,7 +942,11 @@ end
 """
 macro compile(args...)
     default_options = Dict{Symbol,Any}(
-        :optimize => true, :sync => false, :no_nan => false, :client => nothing
+        :optimize => true,
+        :sync => false,
+        :no_nan => false,
+        :client => nothing,
+        :raise => false,
     )
     return esc(first(compile_call_expr(__module__, compile, default_options, args...)))
 end
@@ -955,7 +958,11 @@ Run @compile f(args..) then immediately execute it
 """
 macro jit(args...)
     default_options = Dict{Symbol,Any}(
-        :optimize => true, :sync => false, :no_nan => false, :client => nothing
+        :optimize => true,
+        :sync => false,
+        :no_nan => false,
+        :client => nothing,
+        :raise => false,
     )
     compile_expr, (; compiled, args) = compile_call_expr(
         __module__, compile, default_options, args...
@@ -970,14 +977,14 @@ macro jit(args...)
     #! format: on
 end
 
-function compile_call_expr(mod, compiler, options, args...)
+function compile_call_expr(mod, compiler, options::Dict, args...)
     while length(args) > 1
         option, args = args[1], args[2:end]
         if !Meta.isexpr(option, :(=))
             error("Invalid option $(option)")
         else
             option_name = option.args[1]
-            @assert haskey(options, option_name) "Invalid option $(option_name)"
+            @assert haskey(options, option_name) "Invalid option name '$(option_name)'. Valid options are $(join(keys(options), ", "))"
             options[option_name] = option.args[2]
         end
     end
